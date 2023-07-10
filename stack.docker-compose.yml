@@ -1,0 +1,111 @@
+version: '3.9'
+
+services:
+  server_app:
+    image: 'zabbix/zabbix-server-pgsql:6.4-alpine-latest'
+    environment:
+      - DB_SERVER_HOST=zabbix_db
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=db_zabbix
+    networks:
+      - zabbix-server-net
+      - reverse-proxy
+    depends_on:
+      - db
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 30s
+
+  frontend_app:
+    image: 'zabbix/zabbix-web-apache-pgsql:6.4-alpine-latest'
+    environment:
+      - ZBX_SERVER_HOST=zabbix_server_app
+      - DB_SERVER_HOST=zabbix_db
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=db_zabbix
+      - PHP_TZ=America/Maceio
+    networks:
+      - zabbix-server-net
+      - reverse-proxy
+    depends_on:
+      - db
+      - server-app
+    healthcheck:
+      test: [ 'CMD', 'curl', '-fs', 'http://localhost:8080' ]
+      interval: 1m30s
+      timeout: 30s
+      retries: 3
+      start_period: 10s
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 30s
+
+  db:
+    image: 'postgres:15.2-alpine3.17'
+    volumes:
+      - '/$(pwd)/zabbix-db:/var/lib/postgresql/data'
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=db_zabbix
+    networks:
+      - zabbix-server-net
+    healthcheck:
+      test: [ 'CMD', 'pg_isready', '-U root', '-d $$POSTGRES_DB' ]
+      interval: 1m30s
+      timeout: 30s
+      retries: 3
+      start_period: 10s
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 30s
+
+
+  grafana_app:
+    image: 'grafana/grafana'
+    networks:
+      - zabbix-server-net
+      - reverse-proxy
+    user: '1000:1000'
+    volumes:
+      - '/$(pwd)/grafana-data:/var/lib/grafana'
+    healthcheck:
+      test: [ 'CMD', 'curl', '-fs', 'http://localhost:3000' ]
+      interval: 1m30s
+      timeout: 30s
+      retries: 3
+      start_period: 10s
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 30s
+
+
+networks:
+  zabbix-server-net:
+    name: 'zabbix-server-net'
+    ipam:
+      driver: default
+      config:
+        - subnet: '172.18.0.0/28'
+
+  reverse-proxy:
+    name: 'reverse-proxy'
+    external: true
