@@ -6,20 +6,21 @@ services:
     environment:
       - DB_SERVER_HOST=zabbix_db
       - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
+      - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
       - POSTGRES_DB=db_zabbix
     networks:
       - zabbix-server-net
-      - reverse-proxy
+    secrets:
+      - zbxsec-dbuser-passwd
     depends_on:
       - db
     deploy:
       mode: global
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 30s
+        delay: 5s
+        max_attempts: 5
+        window: 10s
 
   frontend_app:
     image: zabbix/zabbix-web-apache-pgsql:6.4.4-alpine 
@@ -27,39 +28,43 @@ services:
       - ZBX_SERVER_HOST=zabbix_server_app
       - DB_SERVER_HOST=zabbix_db
       - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
+      - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
       - POSTGRES_DB=db_zabbix
       - PHP_TZ=America/Maceio
     networks:
       - zabbix-server-net
       - reverse-proxy
+    secrets:
+      - zbxsec-dbuser-passwd
     depends_on:
       - db
       - server-app
     healthcheck:
       test: [ 'CMD', 'curl', '-fsI', 'http://localhost:8080' ]
-      interval: 1m30s
-      timeout: 30s
+      interval: 30s
+      timeout: 15s
       retries: 3
       start_period: 10s
     deploy:
       mode: global
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 30s
+        delay: 5s
+        max_attempts: 5
+        window: 10s
 
   db:
     image: postgres:15.2-alpine3.17
     volumes:
-      - '/var/lib/zabbix-db:/var/lib/postgresql/data'
+      - /var/lib/zabbix-db:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
+      - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
       - POSTGRES_DB=db_zabbix
     networks:
       - zabbix-server-net
+    secrets:
+      - zbxsec-dbuser-passwd
     healthcheck:
       test: [ 'CMD', 'pg_isready', '-U root', '-d $$POSTGRES_DB' ]
       interval: 30s
@@ -70,9 +75,9 @@ services:
       mode: global
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 30s
+        delay: 5s
+        max_attempts: 5
+        window: 10s
 
 
   grafana_app:
@@ -82,7 +87,7 @@ services:
       - reverse-proxy
     user: '1024:1024'
     volumes:
-      - '/var/lib/grafana-data:/var/lib/grafana'
+      - /var/lib/grafana-data:/var/lib/grafana
     healthcheck:
       test: [ 'CMD', 'curl', '-fsI', 'http://localhost:3000' ]
       interval: 30s
@@ -93,18 +98,22 @@ services:
       mode: global
       restart_policy:
         condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 30s
+        delay: 5s
+        max_attempts: 5
+        window: 10s
+
+secrets:
+  zbxsec-dbuser-passwd:
+    external: true
 
 
 networks:
   zabbix-server-net:
-    name: 'zabbix-server-net'
+    name: zabbix-server-net
     ipam:
       driver: default
       config:
-        - subnet: '172.23.6.0/28'
+        - subnet: 172.23.6.0/28
 
   reverse-proxy:
     name: nginx-proxymng-net
