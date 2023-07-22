@@ -5,15 +5,20 @@ services:
     image: zabbix/zabbix-server-pgsql:6.4.4-alpine 
     environment:
       - DB_SERVER_HOST=zabbix_db
-      - POSTGRES_USER=root
+      - POSTGRES_USER_FILE=/run/secrets/zbxsec-db-user
       - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_DB=
     networks:
       - zabbix-server-net
     secrets:
-      - zbxsec-dbuser-passwd
+      - source: zbxsec-db-user
+        target: zbxsec-db-user
+        mode: 0440
+      - source: zbxsec-dbuser-passwd
+        target: zbxsec-dbuser-passwd
+        mode: 0440 
     depends_on:
-      - db
+      - zabbix_db
     deploy:
       mode: global
       restart_policy:
@@ -27,18 +32,23 @@ services:
     environment:
       - ZBX_SERVER_HOST=zabbix_server_app
       - DB_SERVER_HOST=zabbix_db
-      - POSTGRES_USER=root
+      - POSTGRES_USER_FILE=/run/secrets/zbxsec-db-user
       - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_DB=
       - PHP_TZ=America/Maceio
     networks:
       - zabbix-server-net
       - reverse-proxy
     secrets:
-      - zbxsec-dbuser-passwd
+      - source: zbxsec-db-user
+        target: zbxsec-db-user
+        mode: 0440
+      - source: zbxsec-dbuser-passwd
+        target: zbxsec-dbuser-passwd
+        mode: 0440
     depends_on:
-      - db
-      - server-app
+      - zabbix_db
+      - zabbix_server_app
     healthcheck:
       test: [ 'CMD', 'curl', '-fsI', 'http://localhost:8080' ]
       interval: 30s
@@ -56,15 +66,20 @@ services:
   db:
     image: postgres:15.2-alpine3.17
     volumes:
-      - /var/lib/zabbix-db:/var/lib/postgresql/data
+      - /$(pwd)/zabbix-db:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=root
+      - POSTGRES_USER_FILE=/run/secrets/zbxsec-db-user
       - POSTGRES_PASSWORD_FILE=/run/secrets/zbxsec-dbuser-passwd
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_DB=
     networks:
       - zabbix-server-net
     secrets:
-      - zbxsec-dbuser-passwd
+      - source: zbxsec-db-user
+        target: zbxsec-db-user
+        mode: 0440
+      - source: zbxsec-dbuser-passwd
+        target: zbxsec-dbuser-passwd
+        mode: 0440 
     healthcheck:
       test: [ 'CMD', 'pg_isready', '-U root', '-d $$POSTGRES_DB' ]
       interval: 30s
@@ -87,7 +102,7 @@ services:
       - reverse-proxy
     user: '1024:1024'
     volumes:
-      - /var/lib/grafana-data:/var/lib/grafana
+      - /$(pwd)/grafana-data:/var/lib/grafana
     healthcheck:
       test: [ 'CMD', 'curl', '-fsI', 'http://localhost:3000' ]
       interval: 30s
@@ -103,9 +118,10 @@ services:
         window: 10s
 
 secrets:
+  zbxsec-db-user:
+    external: true
   zbxsec-dbuser-passwd:
     external: true
-
 
 networks:
   zabbix-server-net:
@@ -113,8 +129,8 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.23.6.0/28
+        - subnet: 172.18.0.0/28
 
   reverse-proxy:
-    name: nginx-proxymng-net
+    name: reverse-proxy
     external: true
