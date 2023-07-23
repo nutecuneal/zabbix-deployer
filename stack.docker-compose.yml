@@ -81,7 +81,7 @@ services:
         target: zbxsec-dbuser-passwd
         mode: 0440 
     healthcheck:
-      test: [ 'CMD', 'pg_isready', '-U root', '-d $$POSTGRES_DB' ]
+      test: [ 'CMD', 'pg_isready']
       interval: 30s
       timeout: 15s
       retries: 3
