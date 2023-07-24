@@ -2,27 +2,30 @@ version: '3.9'
 
 services:
   server-app:
-    image: 'zabbix/zabbix-server-pgsql:6.4-alpine-latest'
-    container_name: 'zabbix-server-app'
+    image: zabbix/zabbix-server-pgsql:6.4.4-alpine
+    container_name: zabbix-server-app
     environment:
       - DB_SERVER_HOST=zabbix-db
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=
     networks:
       - zabbix-server-net
     depends_on:
       - db
+    restart: unless-stopped
 
   frontend-app:
-    image: 'zabbix/zabbix-web-apache-pgsql:6.4-alpine-latest'
-    container_name: 'zabbix-frontend-app'
+    image: zabbix/zabbix-web-apache-pgsql:6.4.4-alpine
+    container_name: zabbix-frontend-app
+    #ports:
+      #- '8080:8080'
     environment:
       - ZBX_SERVER_HOST=zabbix-server-app
       - DB_SERVER_HOST=zabbix-db
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=
     networks:
       - zabbix-server-net
     depends_on:
@@ -30,35 +33,54 @@ services:
       - server-app
     restart: unless-stopped
     healthcheck:
-      test: [ 'CMD', 'curl', '-fs', 'http://localhost:8080' ]
-      interval: 1m30s
-      timeout: 30s
+      test: [ 'CMD', 'curl', '-fsI', 'http://localhost:8080' ]
+      interval: 30s
+      timeout: 15s
       retries: 3
       start_period: 10s
 
   db:
-    image: 'postgres:15.2-alpine3.17'
-    container_name: 'zabbix-db'
+    image: postgres:15.2-alpine3.17
+    container_name: zabbix-db
     volumes:
-      - '/home/yramon/Develop/zabbix-deployer/psql:/var/lib/postgresql/data'
+      - /$(pwd)/zabbix-db:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=1234
-      - POSTGRES_DB=db_zabbix
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=
     networks:
       - zabbix-server-net
     restart: unless-stopped
     healthcheck:
-      test: [ 'CMD', 'pg_isready', '-U root', '-d $$POSTGRES_DB' ]
-      interval: 1m30s
-      timeout: 30s
+      test: [ 'CMD', 'pg_isready']
+      interval: 30s
+      timeout: 15s
       retries: 3
       start_period: 10s
 
+  grafana-app:
+    image: grafana/grafana:10.0.2
+    container_name: grafana-app
+    #ports:
+      #- '3000:3000'
+    networks:
+      - zabbix-server-net
+    user: '1024:1024'
+    volumes:
+      - /$(pwd)/grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    healthcheck:
+      test: [ 'CMD', 'curl', '-fsI', 'http://localhost:3000' ]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 10s
+
+
 networks:
   zabbix-server-net:
-    name: 'zabbix-server-net'
+    name: zabbix-server-net
     ipam:
       driver: default
       config:
-        - subnet: '172.18.0.0/28'
+        - subnet: 172.18.0.0/28
